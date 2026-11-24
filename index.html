@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amazon Last-Mile Route Optimizer | ACO vs PSO Guadalajara</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            amazon: {
+              DEFAULT: '#FF9900',
+              dark: '#146EB4',
+              navy: '#131921',
+              slate: '#232F3E'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+
+  <!-- Estilos propios -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="h-full flex flex-col overflow-hidden bg-slate-950 font-sans">
+
+  <!-- Header Superior -->
+  <header class="bg-slate-900 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between shrink-0 shadow-lg z-30">
+    <div class="flex items-center gap-3">
+      <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 font-black shadow-md shadow-amber-500/20">
+        <i class="fa-solid fa-truck-fast text-lg"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-sm md:text-base font-bold tracking-tight text-white flex items-center gap-1.5">
+            AMZL Guadalajara <span class="text-amber-400 font-extrabold text-xs uppercase px-1.5 py-0.5 rounded bg-amber-400/10 border border-amber-400/20">DGD1 Hub</span>
+          </h1>
+          <span class="hidden md:inline-block text-xs text-slate-400 font-medium">| Optimización de Última Milla (TSP/VRP)</span>
+        </div>
+        <p class="text-[11px] text-slate-400 hidden sm:block">
+          Ant Colony Optimization (ACO) vs. Particle Swarm Optimization (PSO) sobre Red Vial Real
+        </p>
+      </div>
+    </div>
+
+    <!-- Indicadores y Acciones del Header -->
+    <div class="flex items-center gap-2.5">
+      <div id="statusBadge" class="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 bg-slate-800 border border-slate-700 text-slate-300">
+        <span class="w-2 h-2 rounded-full bg-slate-400 animate-pulse"></span> Inicializando matriz...
+      </div>
+
+      <button id="btnOpenResearchModal" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-200 flex items-center gap-1.5 transition-all shadow-sm">
+        <i class="fa-solid fa-book-bookmark text-amber-400"></i>
+        <span class="hidden sm:inline">Notas Técnicas & Fórmulas</span>
+      </button>
+
+      <a href="https://github.com" target="_blank" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 hover:text-white transition-colors" title="Ver en GitHub">
+        <i class="fa-brands fa-github text-sm"></i>
+      </a>
+    </div>
+  </header>
+
+  <!-- Panel Principal Dividido (Sidebar + Mapa/Chart) -->
+  <div class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+
+    <!-- Sidebar Izquierda: Controles e Hiperparámetros -->
+    <aside class="w-full lg:w-96 bg-slate-900/95 border-b lg:border-b-0 lg:border-r border-slate-800 flex flex-col shrink-0 overflow-y-auto z-20 shadow-2xl backdrop-blur">
+      
+      <!-- Presets de Configuración -->
+      <div class="p-3.5 border-b border-slate-800 bg-slate-900/50">
+        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+          <span><i class="fa-solid fa-sliders text-amber-400 mr-1"></i> Perfiles de Búsqueda</span>
+          <span class="text-[10px] text-slate-500 font-normal">Hiperparámetros</span>
+        </div>
+        <div class="grid grid-cols-3 gap-1.5">
+          <button data-preset="balanced" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-medium text-slate-200 transition-colors text-center">
+            Equilibrado
+          </button>
+          <button data-preset="exploration" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-medium text-slate-200 transition-colors text-center">
+            Exploración
+          </button>
+          <button data-preset="fast" class="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs font-medium text-slate-200 transition-colors text-center">
+            Explotación
+          </button>
+        </div>
+      </div>
+
+      <!-- Botones de Acción / Ejecución -->
+      <div class="p-3.5 border-b border-slate-800 space-y-2">
+        <div class="grid grid-cols-2 gap-2">
+          <button id="btnRunAco" class="px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-600/20 transition-all">
+            <i class="fa-solid fa-bug"></i> Ejecutar ACO
+          </button>
+          <button id="btnRunPso" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/20 transition-all">
+            <i class="fa-solid fa-dove"></i> Ejecutar PSO
+          </button>
+        </div>
+        <button id="btnRunComparison" class="w-full px-3 py-2.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all uppercase tracking-wide">
+          <i class="fa-solid fa-code-compare"></i> Comparativa Simultánea (ACO vs PSO)
+        </button>
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <button id="btnStop" disabled class="px-2.5 py-1.5 rounded-md bg-rose-950/60 hover:bg-rose-900 border border-rose-800/50 text-rose-300 disabled:opacity-40 text-xs font-medium flex items-center justify-center gap-1 transition-colors">
+            <i class="fa-solid fa-pause"></i> Detener
+          </button>
+          <button id="btnReset" class="px-2.5 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-medium flex items-center justify-center gap-1 transition-colors">
+            <i class="fa-solid fa-rotate-left"></i> Restablecer
+          </button>
+        </div>
+      </div>
+
+      <!-- Acordeón / Controles de Hiperparámetros -->
+      <div class="p-3.5 space-y-4 text-xs">
+        
+        <!-- ACO Controls -->
+        <div class="rounded-xl bg-slate-950/60 border border-cyan-900/40 p-3 shadow-inner">
+          <div class="flex items-center justify-between pb-2 mb-2 border-b border-cyan-900/40">
+            <span class="font-bold text-cyan-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-share-nodes text-xs"></i> Parámetros ACO
+            </span>
+            <span class="text-[10px] text-cyan-500/80 font-mono">Ant Colony System</span>
+          </div>
+
+          <div class="space-y-2.5">
+            <div>
+              <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                <span>Hormigas (<span class="font-serif italic">m</span>)</span>
+                <span id="acoAntsVal" class="font-mono text-cyan-400 font-bold">30</span>
+              </div>
+              <input type="range" id="acoAnts" min="5" max="100" value="30" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                <span>Iteraciones</span>
+                <span id="acoIterationsVal" class="font-mono text-cyan-400 font-bold">50</span>
+              </div>
+              <input type="range" id="acoIterations" min="10" max="150" value="50" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                  <span>Feromona (&alpha;)</span>
+                  <span id="acoAlphaVal" class="font-mono text-cyan-400 font-bold">1.2</span>
+                </div>
+                <input type="range" id="acoAlpha" min="0.0" max="5.0" step="0.1" value="1.2" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+              </div>
+
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                  <span>Visibilidad (&beta;)</span>
+                  <span id="acoBetaVal" class="font-mono text-cyan-400 font-bold">3.5</span>
+                </div>
+                <input type="range" id="acoBeta" min="1.0" max="8.0" step="0.1" value="3.5" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                  <span>Evaporación (&rho;)</span>
+                  <span id="acoRhoVal" class="font-mono text-cyan-400 font-bold">0.15</span>
+                </div>
+                <input type="range" id="acoRho" min="0.01" max="0.80" step="0.01" value="0.15" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+              </div>
+
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                  <span>Depósito (<span class="font-serif italic">Q</span>)</span>
+                  <span id="acoQVal" class="font-mono text-cyan-400 font-bold">100</span>
+                </div>
+                <input type="range" id="acoQ" min="20" max="400" step="10" value="100" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PSO Controls -->
+        <div class="rounded-xl bg-slate-950/60 border border-emerald-900/40 p-3 shadow-inner">
+          <div class="flex items-center justify-between pb-2 mb-2 border-b border-emerald-900/40">
+            <span class="font-bold text-emerald-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-atom text-xs"></i> Parámetros PSO
+            </span>
+            <span class="text-[10px] text-emerald-500/80 font-mono">Swap Sequence Swarm</span>
+          </div>
+
+          <div class="space-y-2.5">
+            <div>
+              <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                <span>Partículas</span>
+                <span id="psoParticlesVal" class="font-mono text-emerald-400 font-bold">30</span>
+              </div>
+              <input type="range" id="psoParticles" min="5" max="100" value="30" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                <span>Iteraciones</span>
+                <span id="psoIterationsVal" class="font-mono text-emerald-400 font-bold">50</span>
+              </div>
+              <input type="range" id="psoIterations" min="10" max="150" value="50" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                  <span>Inercia (<span class="font-serif italic">w</span>)</span>
+                  <span id="psoWVal" class="font-mono text-emerald-400 font-bold">0.7</span>
+                </div>
+                <input type="range" id="psoW" min="0.1" max="1.0" step="0.05" value="0.7" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+              </div>
+
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                  <span>Cognitivo (<span class="font-serif italic">c₁</span>)</span>
+                  <span id="psoC1Val" class="font-mono text-emerald-400 font-bold">1.5</span>
+                </div>
+                <input type="range" id="psoC1" min="0.1" max="3.0" step="0.1" value="1.5" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+              </div>
+
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                  <span>Social (<span class="font-serif italic">c₂</span>)</span>
+                  <span id="psoC2Val" class="font-mono text-emerald-400 font-bold">1.8</span>
+                </div>
+                <input type="range" id="psoC2" min="0.1" max="3.0" step="0.1" value="1.8" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gestión de Paradas en Guadalajara -->
+        <div class="rounded-xl bg-slate-950/60 border border-slate-800 p-3 shadow-inner">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-bold text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-location-dot text-amber-500"></i> Paradas en Guadalajara
+            </span>
+            <span id="activeStopsCount" class="text-[10px] text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20 font-bold">
+              14 paradas
+            </span>
+          </div>
+
+          <button id="btnAddStopMode" class="w-full mb-2.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors">
+            📍 Clic en Mapa para Añadir Parada
+          </button>
+
+          <div id="stopsListContainer" class="max-h-48 overflow-y-auto pr-1">
+            <!-- Renderizado dinámico desde app.js -->
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- Área Central y Derecha: KPIs + Mapa Leaflet + Gráfica de Convergencia -->
+    <main class="flex-1 flex flex-col overflow-hidden relative">
+
+      <!-- Tarjetas de Métricas KPI Superior -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5 p-3 bg-slate-900/80 border-b border-slate-800 shrink-0 z-10 backdrop-blur">
+        
+        <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-2.5 flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-route text-base"></i>
+          </div>
+          <div class="overflow-hidden">
+            <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Distancia Óptima</div>
+            <div id="metricDistance" class="text-sm md:text-base font-extrabold text-white truncate font-mono">0.00 km</div>
+          </div>
+        </div>
+
+        <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-2.5 flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-clock text-base"></i>
+          </div>
+          <div class="overflow-hidden">
+            <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Tiempo Estimado</div>
+            <div id="metricTime" class="text-sm md:text-base font-extrabold text-white truncate font-mono">0h 0m</div>
+          </div>
+        </div>
+
+        <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-2.5 flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-chart-line text-base"></i>
+          </div>
+          <div class="overflow-hidden">
+            <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Tasa de Mejora</div>
+            <div id="metricImprovement" class="text-sm md:text-base font-extrabold text-amber-400 truncate font-mono">0.0%</div>
+          </div>
+        </div>
+
+        <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-2.5 flex items-center gap-3">
+          <div class="w-9 h-9 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-rotate text-base"></i>
+          </div>
+          <div class="overflow-hidden">
+            <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Ciclo / Iteración</div>
+            <div id="metricIteration" class="text-sm md:text-base font-extrabold text-white truncate font-mono">En espera</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Contenedor del Mapa Leaflet -->
+      <div class="flex-1 relative overflow-hidden">
+        <div id="mapContainer" class="w-full h-full z-0"></div>
+
+        <!-- Leyenda Flotante sobre el Mapa -->
+        <div class="absolute bottom-4 left-4 z-10 bg-slate-900/90 border border-slate-800 rounded-xl p-3 shadow-2xl backdrop-blur text-xs space-y-1.5 pointer-events-auto max-w-xs">
+          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Leyenda Logística</div>
+          <div class="flex items-center gap-2 text-slate-300">
+            <span class="w-3.5 h-3.5 rounded-full bg-slate-900 border-2 border-amber-500 inline-block shrink-0"></span>
+            <span>Depósito Central (Amazon DGD1)</span>
+          </div>
+          <div class="flex items-center gap-2 text-slate-300">
+            <span class="w-3.5 h-3.5 rounded-full bg-blue-600 inline-block shrink-0"></span>
+            <span>Paradas de Entrega ZMG</span>
+          </div>
+          <div class="flex items-center gap-2 text-cyan-400 font-semibold">
+            <span class="w-4 h-1 bg-cyan-400 inline-block rounded shrink-0"></span>
+            <span>Ruta Óptima ACO (Hormigas)</span>
+          </div>
+          <div class="flex items-center gap-2 text-emerald-400 font-semibold">
+            <span class="w-4 h-1 bg-emerald-500 inline-block rounded shrink-0"></span>
+            <span>Ruta Óptima PSO (Enjambre)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel Inferior: Gráfica de Convergencia -->
+      <div class="h-44 md:h-52 bg-slate-900/95 border-t border-slate-800 p-3 shrink-0 flex flex-col z-10">
+        <div class="flex items-center justify-between mb-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-chart-area text-amber-400"></i> Convergencia en Tiempo Real
+            </span>
+            <span class="text-[11px] text-slate-500 hidden sm:inline">Distancia total del circuito (km) vs. Iteraciones</span>
+          </div>
+          <div class="text-[11px] text-slate-400 flex items-center gap-3 font-mono">
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span> ACO</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> PSO</span>
+          </div>
+        </div>
+        <div class="flex-1 relative w-full h-full">
+          <canvas id="convergenceChart"></canvas>
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Modal: Notas de Investigación y Formulación Matemática -->
+  <div id="researchModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+      
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/80">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+            <i class="fa-solid fa-microchip"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-white">Modelado Matemático de Última Milla (Amazon Logistics)</h3>
+            <p class="text-xs text-slate-400">ACO y PSO adaptados para TSP / VRP en Red Vial Urbana</p>
+          </div>
+        </div>
+        <button id="btnCloseResearchModal" class="text-slate-400 hover:text-white text-lg p-1.5 rounded-lg hover:bg-slate-800 transition-colors">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-5 text-xs text-slate-300 leading-relaxed">
+        
+        <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-4">
+          <h4 class="text-amber-400 font-bold mb-2 flex items-center gap-1.5 text-sm">
+            <i class="fa-solid fa-boxes-packing"></i> 1. Logística de Última Milla en Redes Tipo Amazon
+          </h4>
+          <p class="text-slate-300 mb-2">
+            La última milla parte de una <strong>Estación de Entrega (Delivery Station - DS)</strong> como el nodo real <em>DGD1 Zona Industrial Guadalajara (20.6350, -103.3578)</em>.
+          </p>
+          <ul class="list-disc list-inside space-y-1 text-slate-400">
+            <li><strong>Consolidación de Paradas:</strong> Agrupación espacial para minimizar la dispersión del recorrido.</li>
+            <li><strong>Red Vial Asimétrica Real:</strong> La distancia y tiempo difieren de la línea euclidiana debido a sentidos de calles y semáforos, resuelto mediante la API gratuita de OSRM (o fallback Haversine).</li>
+            <li><strong>Circuito Cerrado (TSP):</strong> La furgoneta inicia en el depósito, visita cada nodo una sola vez y regresa al depósito central.</li>
+          </ul>
+        </div>
+
+        <div class="bg-slate-950/70 border border-cyan-900/40 rounded-xl p-4">
+          <h4 class="text-cyan-400 font-bold mb-2 flex items-center gap-1.5 text-sm">
+            <i class="fa-solid fa-bug"></i> 2. Formulación Matemática de Ant Colony Optimization (ACO)
+          </h4>
+          <p class="mb-2"><strong>Regla de Transición Probabilística:</strong></p>
+          <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-center font-mono text-cyan-300 my-2">
+            P_ij^k = [ &tau;_ij ]^&alpha; &middot; [ &eta;_ij ]^&beta; / &sum; [ &tau;_il ]^&alpha; &middot; [ &eta;_il ]^&beta;
+          </div>
+          <p class="text-slate-400 mb-2">
+            Donde <code>&tau;_ij</code> es la concentración de feromona histórica (explotación) y <code>&eta;_ij = 1 / d_ij</code> es la visibilidad heurística voraz (exploración inmediata guiada por distancia métrica real).
+          </p>
+          <p class="mb-2"><strong>Evaporación y Depósito:</strong></p>
+          <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-center font-mono text-cyan-300 my-2">
+            &tau;_ij &larr; (1 - &rho;) &middot; &tau;_ij + &sum; (Q / L_k)
+          </div>
+          <p class="text-slate-400">
+            <code>&rho;</code> es la tasa de evaporación para olvidar malas rutas y <code>Q</code> es la constante de depósito inversamente proporcional a la longitud <code>L_k</code> del recorrido.
+          </p>
+        </div>
+
+        <div class="bg-slate-950/70 border border-emerald-900/40 rounded-xl p-4">
+          <h4 class="text-emerald-400 font-bold mb-2 flex items-center gap-1.5 text-sm">
+            <i class="fa-solid fa-atom"></i> 3. Adaptación Discreta de Particle Swarm Optimization (PSO)
+          </h4>
+          <p class="text-slate-300 mb-2">
+            Para espacios discretos de permutaciones, se utiliza el <strong>Álgebra de Operadores de Intercambio (Clerc, 2004)</strong>:
+          </p>
+          <ul class="list-disc list-inside space-y-1 text-slate-400 mb-2">
+            <li><strong>Posición X_i:</strong> Permutación de paradas intermedias <code>[s_1, s_2, ..., s_n]</code> con depósito fijo al inicio y fin.</li>
+            <li><strong>Velocidad V_i:</strong> Secuencia de operadores de intercambio <code>Swap Sequence = [SO(a, b), ...]</code>.</li>
+            <li><strong>Resta A - B:</strong> Secuencia mínima de intercambios requerida para transformar la ruta B en la ruta A.</li>
+            <li><strong>Actualización del Enjambre:</strong></li>
+          </ul>
+          <div class="bg-slate-900 p-2.5 rounded-lg border border-slate-800 text-center font-mono text-emerald-300 my-2">
+            V_i(t+1) = (w &otimes; V_i) &oplus; (c₁ r₁ &otimes; (Pbest - X_i)) &oplus; (c₂ r₂ &otimes; (Gbest - X_i))
+          </div>
+          <p class="text-slate-400">
+            Donde <code>w</code> es la inercia de intercambios anteriores, <code>c₁</code> es la atracción hacia el mejor recorrido individual y <code>c₂</code> la atracción hacia el mejor líder global del enjambre.
+          </p>
+        </div>
+
+      </div>
+
+      <div class="px-6 py-3 border-t border-slate-800 bg-slate-900/90 flex justify-end">
+        <button onclick="document.getElementById('researchModal').classList.add('hidden')" class="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs transition-colors">
+          Entendido / Cerrar
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Script Principal de la Aplicación (Bundle universal listo para Web y Local) -->
+  <script src="js/app.bundle.js"></script>
+</body>
+</html>
